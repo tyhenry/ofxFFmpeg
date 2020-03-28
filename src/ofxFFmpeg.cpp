@@ -31,7 +31,7 @@ Recorder::Recorder()
 Recorder::~Recorder()
 {
 	stop();
-	if (m_thread.joinable()) m_thread.join();
+	if ( m_thread.joinable() ) m_thread.join();
 }
 
 // -----------------------------------------------------------------
@@ -69,26 +69,27 @@ bool Recorder::start( const RecorderSettings &settings )
 	std::string cmd               = m_settings.ffmpegPath;
 	std::vector<std::string> args = {
 	    "-y",   // overwrite
-	    "-an",  // disable audio -- todo: add audio
+	    "-an",  // disable audio -- todo: add audio,
 
 	    // input
-	    "-r " + std::to_string( m_settings.fps ),                  // input frame rate
+	    "-r " + ofToString( m_settings.fps ),                      // input frame rate
 	    "-s " + std::to_string( m_settings.videoResolution.x ) +   // input resolution x
 	        "x" + std::to_string( m_settings.videoResolution.y ),  // input resolution y
 	    "-f rawvideo",                                             // input codec
 	    "-pix_fmt rgb24",                                          // input pixel format
-	    "-i pipe:",                                                // input source (default pipe)
 	    m_settings.extraInputArgs,                                 // custom input args
+	    "-i pipe:",                                                // input source (default pipe)
 
 	    // output
-	    "-r " + std::to_string( m_settings.fps ),  // output frame rate
-	    "-c:v " + m_settings.videoCodec,           // output codec
-	    m_settings.extraOutputArgs,                // custom output args
-	    m_settings.outputPath                      // output path
+	    "-r " + ofToString( m_settings.fps ),              // output frame rate
+	    "-c:v " + m_settings.videoCodec,                   // output codec
+	    "-b:v " + ofToString( m_settings.bitrate ) + "k",  // output bitrate kbps (hint)
+	    m_settings.extraOutputArgs,                        // custom output args
+	    m_settings.outputPath                              // output path
 	};
 
 	for ( const auto &arg : args ) {
-		cmd += " " + arg;
+		if ( !arg.empty() ) cmd += " " + arg;
 	}
 
 	if ( m_ffmpegPipe != nullptr ) {
@@ -130,25 +131,42 @@ size_t Recorder::addFrame( const ofPixels &pixels )
 		return 0;
 	}
 
-	size_t written = 0;
-
 	if ( m_nAddedFrames == 0 ) {
 		if ( m_thread.joinable() ) m_thread.detach();
 		m_thread          = std::thread( &Recorder::processFrame, this );
 		m_recordStartTime = Clock::now();
+		m_lastFrameTime   = m_recordStartTime;
 	}
 
 	// add new frame(s) at specified frame rate
-	float delta          = Seconds( Clock::now() - m_recordStartTime ).count() - getRecordedDuration();
-	const float frameDur = 1.f / m_settings.fps;
+	const float delta          = Seconds( Clock::now() - m_recordStartTime ).count() - getRecordedDuration();
+	const size_t framesToWrite = delta * m_settings.fps;
+	size_t written             = 0;
+	ofPixels *pixPtr           = nullptr;
 
-	while ( m_nAddedFrames == 0 || delta >= frameDur ) {
-		delta -= frameDur;
-		m_frames.produce( new ofPixels( pixels ) );
-		m_nAddedFrames += ++written;
+	// drop or duplicate frames to maintain constant framerate
+	while ( m_nAddedFrames == 0 || framesToWrite > written ) {
+
+		if ( !pixPtr ) {
+			pixPtr = new ofPixels( pixels );  // copy pixel data
+		}
+
+		if ( written == framesToWrite - 1 ) {
+			// only the last frame we produce owns the pixel data
+			m_frames.produce( pixPtr );
+		} else {
+			// otherwise, we reference the data
+			ofPixels *pixRef = new ofPixels();
+			pixRef->setFromExternalPixels( pixPtr->getData(), pixPtr->getWidth(), pixPtr->getHeight(), pixPtr->getPixelFormat() );  // re-use already copied pointer
+			m_frames.produce( pixRef );
+		}
+
+		++m_nAddedFrames;
+		++written;
+		m_lastFrameTime = Clock::now();
 	}
 
-	return written > 0;
+	return written;
 }
 
 // -----------------------------------------------------------------
@@ -157,14 +175,14 @@ void Recorder::processFrame()
 	while ( isRecording() ) {
 
 		TimePoint lastFrameTime = Clock::now();
+		const float framedur    = 1.f / m_settings.fps;
 
 		while ( m_frames.size() ) {  // allows finish processing queue after we call stop()
 
 			// feed frames at constant fps
-			float delta           = Seconds( Clock::now() - lastFrameTime ).count();
-			const float framerate = 1.f / m_settings.fps;
+			float delta = Seconds( Clock::now() - lastFrameTime ).count();
 
-			if ( delta >= framerate ) {
+			if ( delta >= framedur ) {
 
 				if ( !isRecording() ) {
 					LOG_WARNING() << "Recording stopped, but finishing frame queue - " << m_frames.size() << " remaining frames at " << m_settings.fps << " fps";
