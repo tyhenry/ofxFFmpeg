@@ -132,7 +132,7 @@ size_t Recorder::addFrame( const ofPixels &pixels )
 	}
 
 	if ( m_nAddedFrames == 0 ) {
-		if ( m_thread.joinable() ) m_thread.detach();
+		if ( m_thread.joinable() ) m_thread.join();  //detach();
 		m_thread          = std::thread( &Recorder::processFrame, this );
 		m_recordStartTime = Clock::now();
 		m_lastFrameTime   = m_recordStartTime;
