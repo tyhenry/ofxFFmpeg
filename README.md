@@ -24,5 +24,6 @@ Code is a rewrite of [`ofxFfmpegRecorder`](https://github.com/Furkanzmc/ofxFFmpe
  - `ffmpeg`  
   By default `ofxFFmpeg` will call `ffmpeg` from your PATH.  
   You may alternatively specify the full path to a local `ffmpeg` binary in `ofxFFmpeg::RecorderSettings`.  
-  `ffmpeg` binaries are included in the `libs` directory for portability.
-
+  `ffmpeg` binaries are included in the `libs` directory for portability.  
+  On macOS and Linux, you may have to give executing permission to `ffmpeg` binary.  
+  by `chmod +x your_ffmpeg_path`
