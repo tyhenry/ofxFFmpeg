@@ -39,22 +39,22 @@ bool Recorder::start( const RecorderSettings &settings )
 {
 
 	if ( isRecording() ) {
-		LOG_WARNING( "Can't start recording - already started." );
+		LOG_WARNING() << "Can't start recording - already started.";
 		return false;
 	}
 
 	if ( !isReady() ) {
-		LOG_ERROR( "Can't start recording - previous recording is still processing." );
+		LOG_ERROR() << "Can't start recording - previous recording is still processing.";
 		return false;
 	}
 
 	if ( settings.outputPath.empty() ) {
-		LOG_ERROR( "Can't start recording - output path is not set!" );
+		LOG_ERROR() << "Can't start recording - output path is not set!";
 		return false;
 	}
 
 	if ( ofFile::doesFileExist( ofToDataPath( m_settings.outputPath, true ), false ) && !m_settings.allowOverwrite ) {
-		LOG_ERROR( "The output file already exists and overwriting is disabled. Can't record to file: " + m_settings.outputPath );
+		LOG_ERROR() << "The output file already exists and overwriting is disabled. Can't record to file: " << m_settings.outputPath;
 		return false;
 	}
 
@@ -196,7 +196,7 @@ void Recorder::processFrame()
 					const size_t written      = m_ffmpegPipe ? fwrite( data, sizeof( char ), dataLength, m_ffmpegPipe ) : 0;
 
 					if ( written <= 0 ) {
-						LOG_WARNING( "Unable to write the frame." );
+						LOG_WARNING() << "Unable to write the frame.";
 					}
 
 					pixels->clear();
