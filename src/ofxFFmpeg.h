@@ -25,6 +25,7 @@ public:
 	bool start( const RecorderSettings& settings );
 	void stop();
 
+	bool wantsFrame();	// returns true if recorder is ready for new frame
 	size_t addFrame( const ofPixels& pixels );  // returns the number of frames added to queue
 
 	bool isRecording() const { return m_isRecording.load(); }

@@ -113,6 +113,16 @@ void Recorder::stop()
 	m_isRecording = false;
 }
 
+bool Recorder::wantsFrame()
+{
+	if ( m_isRecording && m_ffmpegPipe ) {
+		const float delta          = Seconds( Clock::now() - m_recordStartTime ).count() - getRecordedDuration();
+		const size_t framesToWrite = delta * m_settings.fps;
+		return framesToWrite > 0;
+	}
+	return false;
+}
+
 // -----------------------------------------------------------------
 size_t Recorder::addFrame( const ofPixels &pixels )
 {
