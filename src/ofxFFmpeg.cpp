@@ -5,10 +5,10 @@
 #include "ofVideoGrabber.h"
 
 // Logging macros
-#define LOG_ERROR() ofLogError( "ofxFFmpeg" ) << __FUNCTION__ << ":" << __LINE__ << ": "
-#define LOG_WARNING() ofLogWarning( "ofxFFmpeg" ) << __FUNCTION__ << ":" << __LINE__ << ": "
-#define LOG_NOTICE() ofLogNotice( "ofxFFmpeg" ) << __FUNCTION__ << ":" << __LINE__ << ": "
-#define LOG_VERBOSE() ofLogVerbose( "ofxFFmpeg" ) << __FUNCTION__ << ":" << __LINE__ << ": "
+#define LOG_ERROR() ofLogError( "ofxFFmpeg" ) << __FUNCTION__ << ": "
+#define LOG_WARNING() ofLogWarning( "ofxFFmpeg" ) << __FUNCTION__ << ": "
+#define LOG_NOTICE() ofLogNotice( "ofxFFmpeg" ) << __FUNCTION__ << ": "
+#define LOG_VERBOSE() ofLogVerbose( "ofxFFmpeg" ) << __FUNCTION__ << ": "
 #define LOG() LOG_NOTICE()
 
 // Subprocess macros
@@ -195,7 +195,7 @@ void Recorder::processFrame()
 			if ( delta >= framedur ) {
 
 				if ( !isRecording() ) {
-					LOG_WARNING() << "Recording stopped, but finishing frame queue - " << m_frames.size() << " remaining frames at " << m_settings.fps << " fps";
+					LOG_VERBOSE() << "Recording stopped, but finishing frame queue - " << m_frames.size() << " remaining frames at " << m_settings.fps << " fps";
 				}
 
 				ofPixels *pixels = nullptr;
