@@ -101,7 +101,10 @@ bool Recorder::start( const RecorderSettings &settings )
 	m_ffmpegPipe = P_OPEN( cmd.c_str() );
 
 	if ( !m_ffmpegPipe ) {
-		LOG_ERROR() << "Unable to start recording. Error: " << std::strerror( errno );
+		// get error string from 'errno' code
+		char errmsg[500];
+		strerror_s( errmsg, 500, errno );
+		LOG_ERROR() << "Unable to start recording. Error: " << errmsg;
 		return false;
 	}
 	return m_isRecording = true;
@@ -222,7 +225,10 @@ void Recorder::processFrame()
 
 	if ( m_ffmpegPipe ) {
 		if ( P_CLOSE( m_ffmpegPipe ) < 0 ) {
-			LOG_ERROR() << "Error closing FFmpeg pipe: " << std::strerror( errno );
+			// get error string from 'errno' code
+			char errmsg[500];
+			strerror_s( errmsg, 500, errno );
+			LOG_ERROR() << "Error closing FFmpeg pipe. Error: " << errmsg;
 		}
 	}
 
