@@ -22,26 +22,29 @@ public:
 	Recorder();
 	~Recorder();
 
-	bool start( const RecorderSettings& settings );
+	bool start( const RecorderSettings& settings, bool forceIfNotReady = false );
 	void stop();
 
-	bool wantsFrame();	// returns true if recorder is ready for new frame
+	bool wantsFrame();                          // returns true if recorder is ready for new frame
 	size_t addFrame( const ofPixels& pixels );  // returns the number of frames added to queue
 
 	bool isRecording() const { return m_isRecording.load(); }
 	bool isReady() const { return m_isRecording.load() == false && m_frames.size() == 0; }
 	float getRecordedDuration() const { return m_nAddedFrames / m_settings.fps; }
+	size_t numFramesInQueue() { return m_frames.size(); }
+
 
 	const RecorderSettings& getSettings() const { return m_settings; }
 
 protected:
 	RecorderSettings m_settings;
 	std::atomic<bool> m_isRecording;
-	FILE* m_ffmpegPipe;
+	FILE* m_ffmpegPipe = nullptr;
 	TimePoint m_recordStartTime, m_lastFrameTime;
 	unsigned int m_nAddedFrames;
 	std::thread m_thread;
 	LockFreeQueue<ofPixels*> m_frames;
+	std::mutex m_mtx, m_pipeMtx;
 
 	void processFrame();
 };

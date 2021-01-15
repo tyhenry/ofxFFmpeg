@@ -7,6 +7,7 @@
 #include "ofRectangle.h"
 #include "ofSoundBaseTypes.h"
 #include "ofVideoBaseTypes.h"
+#include <mutex>
 
 #if defined( TARGET_OSX )
 #include <thread>
@@ -58,19 +59,20 @@ struct LockFreeQueue
 		return std::distance( m_HeadIt, m_TailIt ) - 1;
 	}
 
-	typename std::list<T>::iterator getHead() const
-	{
-		return m_HeadIt;
-	}
+	//typename std::list<T>::iterator getHead() const
+	//{
+	//	return m_HeadIt;
+	//}
 
-	typename std::list<T>::iterator getTail() const
-	{
-		return m_TailIt;
-	}
+	//typename std::list<T>::iterator getTail() const
+	//{
+	//	return m_TailIt;
+	//}
 
 private:
 	using TList = std::list<T>;
 	TList m_List;
 	typename TList::iterator m_HeadIt, m_TailIt;
+
 };
 }  // namespace ofxFFmpeg

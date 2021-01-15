@@ -35,17 +35,31 @@ Recorder::~Recorder()
 }
 
 // -----------------------------------------------------------------
-bool Recorder::start( const RecorderSettings &settings )
+bool Recorder::start( const RecorderSettings &settings, bool forceIfNotReady )
 {
 
-	if ( isRecording() ) {
+	if ( m_isRecording ) {
 		LOG_WARNING() << "Can't start recording - already started.";
 		return false;
 	}
 
 	if ( !isReady() ) {
-		LOG_ERROR() << "Can't start recording - previous recording is still processing.";
-		return false;
+		if ( forceIfNotReady ) {
+			LOG_WARNING() << "Starting new recording - cancelling previous still-processing recording '" << m_settings.outputPath << "' and deleting " << numFramesInQueue() << " queued frames...";
+			ofPixels *pixels = nullptr;
+			m_mtx.lock();
+			while ( m_frames.consume( pixels ) ) {
+				if ( pixels ) {
+					pixels->clear();
+					delete pixels;
+				}
+			}
+			m_mtx.unlock();
+		} else {
+
+			LOG_ERROR() << "Can't start recording - previous recording is still processing " << numFramesInQueue() << " frames";
+			return false;
+		}
 	}
 
 	if ( settings.outputPath.empty() ) {
@@ -92,22 +106,32 @@ bool Recorder::start( const RecorderSettings &settings )
 		if ( !arg.empty() ) cmd += " " + arg;
 	}
 
-	if ( m_ffmpegPipe != nullptr ) {
-		P_CLOSE( m_ffmpegPipe );
+	std::unique_lock<std::mutex> lck( m_pipeMtx );
+	if ( m_ffmpegPipe ) {
+		if ( P_CLOSE( m_ffmpegPipe ) < 0 ) {
+			// get error string from 'errno' code
+			char errmsg[500];
+			strerror_s( errmsg, 500, errno );
+			LOG_ERROR() << "Error closing FFmpeg pipe. Error: " << errmsg;
+		}
 	}
+	lck.unlock();
 
 	LOG() << "Starting recording with command...\n\t" << cmd << "\n";
 
+	lck.lock();
 	m_ffmpegPipe = P_OPEN( cmd.c_str() );
-
 	if ( !m_ffmpegPipe ) {
 		// get error string from 'errno' code
 		char errmsg[500];
 		strerror_s( errmsg, 500, errno );
-		LOG_ERROR() << "Unable to start recording. Error: " << errmsg;
+		LOG_ERROR() << "Unable to open ffmpeg pipe to start recording. Error: " << errmsg;
 		return false;
 	}
-	return m_isRecording = true;
+	lck.unlock();
+
+	m_isRecording = true;
+	return true;
 }
 
 // -----------------------------------------------------------------
@@ -116,6 +140,7 @@ void Recorder::stop()
 	m_isRecording = false;
 }
 
+// -----------------------------------------------------------------
 bool Recorder::wantsFrame()
 {
 	if ( m_isRecording && m_ffmpegPipe ) {
@@ -166,12 +191,16 @@ size_t Recorder::addFrame( const ofPixels &pixels )
 
 		if ( written == framesToWrite - 1 ) {
 			// only the last frame we produce owns the pixel data
+			m_mtx.lock();
 			m_frames.produce( pixPtr );
+			m_mtx.unlock();
 		} else {
 			// otherwise, we reference the data
 			ofPixels *pixRef = new ofPixels();
 			pixRef->setFromExternalPixels( pixPtr->getData(), pixPtr->getWidth(), pixPtr->getHeight(), pixPtr->getPixelFormat() );  // re-use already copied pointer
+			m_mtx.lock();
 			m_frames.produce( pixRef );
+			m_mtx.unlock();
 		}
 
 		++m_nAddedFrames;
@@ -185,7 +214,7 @@ size_t Recorder::addFrame( const ofPixels &pixels )
 // -----------------------------------------------------------------
 void Recorder::processFrame()
 {
-	while ( isRecording() ) {
+	while ( m_isRecording ) {
 
 		TimePoint lastFrameTime = Clock::now();
 		const float framedur    = 1.f / m_settings.fps;
@@ -197,16 +226,23 @@ void Recorder::processFrame()
 
 			if ( delta >= framedur ) {
 
-				if ( !isRecording() ) {
-					LOG_VERBOSE() << "Recording stopped, but finishing frame queue - " << m_frames.size() << " remaining frames at " << m_settings.fps << " fps";
+				if ( !m_isRecording ) {
+					LOG_NOTICE() << "Recording stopped, but finishing frame queue - " << m_frames.size() << " remaining frames at " << m_settings.fps << " fps";
 				}
 
 				ofPixels *pixels = nullptr;
 
-				if ( m_frames.consume( pixels ) && pixels ) {
+				m_mtx.lock();
+				m_frames.consume( pixels );
+				m_mtx.unlock();
+
+				if ( /*m_frames.consume( pixels ) && */ pixels ) {
 					const unsigned char *data = pixels->getData();
 					const size_t dataLength   = m_settings.videoResolution.x * m_settings.videoResolution.y * 3;
-					const size_t written      = m_ffmpegPipe ? fwrite( data, sizeof( char ), dataLength, m_ffmpegPipe ) : 0;
+
+					m_pipeMtx.lock();
+					size_t written = m_ffmpegPipe ? fwrite( data, sizeof( char ), dataLength, m_ffmpegPipe ) : 0;
+					m_pipeMtx.unlock();
 
 					if ( written <= 0 ) {
 						LOG_WARNING() << "Unable to write the frame.";
@@ -223,6 +259,7 @@ void Recorder::processFrame()
 
 	// close ffmpeg pipe once stopped recording
 
+	m_pipeMtx.lock();
 	if ( m_ffmpegPipe ) {
 		if ( P_CLOSE( m_ffmpegPipe ) < 0 ) {
 			// get error string from 'errno' code
@@ -231,8 +268,9 @@ void Recorder::processFrame()
 			LOG_ERROR() << "Error closing FFmpeg pipe. Error: " << errmsg;
 		}
 	}
+	m_ffmpegPipe = nullptr;
+	m_pipeMtx.unlock();
 
-	m_ffmpegPipe   = nullptr;
 	m_nAddedFrames = 0;
 }
 }  // namespace ofxFFmpeg
