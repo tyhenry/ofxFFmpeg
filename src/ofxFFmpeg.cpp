@@ -130,6 +130,8 @@ bool Recorder::start( const RecorderSettings &settings, bool forceIfNotReady )
 	}
 	lck.unlock();
 
+	LOG() << "ffmpeg pipe opened";
+
 	m_isRecording = true;
 	return true;
 }
@@ -257,6 +259,8 @@ void Recorder::processFrame()
 		}
 	}
 
+	LOG_NOTICE() << "Recording finished, closing ffmpeg pipe...";
+
 	// close ffmpeg pipe once stopped recording
 
 	m_pipeMtx.lock();
@@ -270,6 +274,8 @@ void Recorder::processFrame()
 	}
 	m_ffmpegPipe = nullptr;
 	m_pipeMtx.unlock();
+
+	LOG_NOTICE() << "ffmpeg pipe closed";
 
 	m_nAddedFrames = 0;
 }
